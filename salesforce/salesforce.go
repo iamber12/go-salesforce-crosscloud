@@ -17,14 +17,18 @@ type ContentVersion struct {
 }
 
 type CVData struct {
-	cvData        []byte
-	fileExtension string
+	Data          []byte
+	FileExtension string
 }
 
 type ContentDocumentLink struct {
-	ContentDocumentId string       `json:"ContentDocument.LatestPublishedVersionId"`
-	LinkedEntityId    string       `json:"LinkedEntityId"`
-	LinkedEntity      LinkedEntity `json:"LinkedEntity"`
+	LinkedEntityId  string          `json:"LinkedEntityId"`
+	LinkedEntity    LinkedEntity    `json:"LinkedEntity"`
+	ContentDocument ContentDocument `json:"ContentDocument.LatestPublishedVersionId"`
+}
+
+type ContentDocument struct {
+	LatestPublishedVersionId string `json:"LatestPublishedVersionId"`
 }
 
 type LinkedEntity struct {
@@ -52,12 +56,11 @@ func InitializeSalesforce(domain, consumerKey, consumerSecret string) (*Salesfor
 
 func (sf *Salesforce) GetAllFilesFromSalesforce() ([]ContentVersion, error) {
 	contentVersions := []ContentVersion{}
-	contentVersionSoqlQuery := struct {
-		SelectClause ContentVersion `soql:"selectClause,tableName=ContentVersion"`
-	}{}
+	query := `SELECT Id, Title, VersionData, FileExtension FROM ContentVersion`
 
-	err := sf.Client.QueryStruct(contentVersionSoqlQuery, &contentVersions)
+	err := sf.Client.Query(query, &contentVersions)
 	if err != nil {
+
 		return nil, err
 	}
 	return contentVersions, nil
@@ -65,7 +68,7 @@ func (sf *Salesforce) GetAllFilesFromSalesforce() ([]ContentVersion, error) {
 
 func (sf *Salesforce) queryContentDocumentLinkBySObject(sObject string) ([]ContentDocumentLink, error) {
 	contentDocumentLinks := []ContentDocumentLink{}
-	query := fmt.Sprintf(`SELECT ContentDocumentId, LinkedEntityId, LinkedEntity.Name FROM ContentDocumentLink WHERE LinkedEntityId IN (SELECT Id FROM %s)`, sObject)
+	query := fmt.Sprintf(`SELECT ContentDocument.LatestPublishedVersionId, LinkedEntityId, LinkedEntity.Name FROM ContentDocumentLink WHERE LinkedEntityId IN (SELECT Id FROM %s)`, sObject)
 
 	err := sf.Client.Query(query, &contentDocumentLinks)
 	if err != nil {
@@ -75,10 +78,10 @@ func (sf *Salesforce) queryContentDocumentLinkBySObject(sObject string) ([]Conte
 	return contentDocumentLinks, nil
 }
 
-func (sf *Salesforce) queryContentVersionByDocumentLink(contentDocumentIds []string) ([]ContentVersion, error) {
+func (sf *Salesforce) queryContentVersionById(contentVersionIds []string) ([]ContentVersion, error) {
 	contentVersions := []ContentVersion{}
-	idsForQuery := "'" + strings.Join(contentDocumentIds, "', '") + "'"
-	query := fmt.Sprintf("SELECT Id, Title, VersionData, FileExtension FROM ContentVersion WHERE ContentDocumentId IN (%s)", idsForQuery)
+	idsForQuery := "'" + strings.Join(contentVersionIds, "', '") + "'"
+	query := fmt.Sprintf(`SELECT Id, Title, VersionData, FileExtension FROM ContentVersion WHERE Id IN (%s)`, idsForQuery)
 
 	err := sf.Client.Query(query, &contentVersions)
 	if err != nil {
@@ -89,7 +92,7 @@ func (sf *Salesforce) queryContentVersionByDocumentLink(contentDocumentIds []str
 }
 
 func (sf *Salesforce) GetSObjectRelatedFilesFromSalesforce(sObject string) (map[string][]CVData, error) {
-	var contentDocumentIds []string
+	var contentVersionIds []string
 	var linkedEntityIds []string
 	var folderVsCvDataMap = make(map[string][]CVData)
 	var contentVersionVsFolderNameMap = make(map[string]string)
@@ -101,12 +104,12 @@ func (sf *Salesforce) GetSObjectRelatedFilesFromSalesforce(sObject string) (map[
 	}
 
 	for _, contentDocumentLink := range contentDocumentLinks {
-		contentVersionVsFolderNameMap[contentDocumentLink.ContentDocumentId] = contentDocumentLink.LinkedEntity.Name
-		contentDocumentIds = append(contentDocumentIds, contentDocumentLink.ContentDocumentId)
+		contentVersionVsFolderNameMap[contentDocumentLink.ContentDocument.LatestPublishedVersionId] = contentDocumentLink.LinkedEntity.Name
+		contentVersionIds = append(contentVersionIds, contentDocumentLink.ContentDocument.LatestPublishedVersionId)
 		linkedEntityIds = append(linkedEntityIds, contentDocumentLink.LinkedEntityId)
 	}
 
-	contentVersions, err := sf.queryContentVersionByDocumentLink(contentDocumentIds)
+	contentVersions, err := sf.queryContentVersionById(contentVersionIds)
 	if err != nil {
 		fmt.Printf("Error querying Salesforce: %v\n", err)
 		return nil, err
@@ -119,12 +122,9 @@ func (sf *Salesforce) GetSObjectRelatedFilesFromSalesforce(sObject string) (map[
 		}
 
 		folderName := contentVersionVsFolderNameMap[contentVersion.Id]
-		newCVData := struct {
-			cvData        []byte
-			fileExtension string
-		}{
-			cvData:        cvData,
-			fileExtension: contentVersion.FileExtension,
+		newCVData := CVData{
+			Data:          cvData,
+			FileExtension: contentVersion.FileExtension,
 		}
 
 		if folderVsCvDataMap[folderName] == nil {
