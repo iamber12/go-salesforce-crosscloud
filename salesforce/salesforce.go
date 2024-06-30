@@ -18,6 +18,7 @@ type ContentVersion struct {
 
 type CVData struct {
 	Data          []byte
+	Title         string
 	FileExtension string
 }
 
@@ -54,16 +55,33 @@ func InitializeSalesforce(domain, consumerKey, consumerSecret string) (*Salesfor
 	return &Salesforce{Client: sf, Domain: domain}, nil
 }
 
-func (sf *Salesforce) GetAllFilesFromSalesforce() ([]ContentVersion, error) {
+func (sf *Salesforce) GetAllFilesFromSalesforce() ([]CVData, error) {
 	contentVersions := []ContentVersion{}
+	var cvDataList []CVData
 	query := `SELECT Id, Title, VersionData, FileExtension FROM ContentVersion`
 
 	err := sf.Client.Query(query, &contentVersions)
+
+	for _, contentVersion := range contentVersions {
+		cvData, err := sf.DownloadFile(contentVersion.VersionData)
+		if err != nil {
+			return nil, err
+		}
+
+		newCVData := CVData{
+			Data:          cvData,
+			FileExtension: contentVersion.FileExtension,
+			Title:         contentVersion.Title,
+		}
+
+		cvDataList = append(cvDataList, newCVData)
+	}
+
 	if err != nil {
 
 		return nil, err
 	}
-	return contentVersions, nil
+	return cvDataList, nil
 }
 
 func (sf *Salesforce) queryContentDocumentLinkBySObject(sObject string) ([]ContentDocumentLink, error) {
@@ -125,6 +143,7 @@ func (sf *Salesforce) GetSObjectRelatedFilesFromSalesforce(sObject string) (map[
 		newCVData := CVData{
 			Data:          cvData,
 			FileExtension: contentVersion.FileExtension,
+			Title:         contentVersion.Title,
 		}
 
 		if folderVsCvDataMap[folderName] == nil {
