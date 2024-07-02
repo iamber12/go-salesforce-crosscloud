@@ -64,7 +64,7 @@ func (gDrive *GDrive) CreateNewFolder(folderName string, email string) (string, 
 	if email != "" {
 		permission := &drive.Permission{
 			Type: "user",
-			Role: "write",
+			Role: "writer",
 			// Role:         "owner",
 			EmailAddress: email,
 		}
