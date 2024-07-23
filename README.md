@@ -1,6 +1,6 @@
 # CrossCloud File Migration
 
-This project provides a Go package for migrating files between different cloud services. Currently, it supports migrating files from Salesforce to Google Drive. It supports two modes: migrating all files or migrating files by specific objects. The package handles the creation of corresponding directories in Google Drive and uploads the files into those directories.
+This project offers a Go package designed for migrating files between various cloud services. Currently, it supports migrating files from Salesforce to Google Drive. The package provides two modes of operation: migrating all files or migrating files by specific objects. It handles the creation of corresponding directories in Google Drive and uploads the files into those directories.
 
 **Note: This project is a work in progress. Future updates will include support for additional cloud services such as SharePoint. We are actively looking for contributors to help us expand and improve this project.**
 
